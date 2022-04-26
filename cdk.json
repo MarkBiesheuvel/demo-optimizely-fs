@@ -1,0 +1,8 @@
+{
+  "app": "python3 cdk/app.py",
+  "requireApproval": "broadening",
+  "versionReporting": false,
+  "context": {
+    "domainName": "optimizely.demo.training"
+  }
+}
