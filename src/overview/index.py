@@ -90,11 +90,18 @@ def handler(event, context):
     reverse = (decision.variables['direction'] == 'desc')
 
     # Sort and limit the products based on decision
-    response = sorted(
+    selected_products = sorted(
         products,
         key=lambda product: product[field],
         reverse=reverse
     )[:number_of_products]
+
+    response = {
+        'products': selected_products,
+        'user_id': user_id,
+        'variation': decision.variation_key,
+        'variables': decision.variables,
+    }
 
     # Return a HTTP response to API proxy
     return {
