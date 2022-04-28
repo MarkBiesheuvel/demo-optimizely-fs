@@ -1,29 +1,28 @@
 from os import environ
 from time import sleep
 from random import randint
-from logging import INFO
+from logging import WARNING
 from json import dumps as json_encode
 from optimizely.optimizely import Optimizely
-from optimizely.logger import SimpleLogger
+from optimizely.logger import NoOpLogger
 from optimizely.event_dispatcher import EventDispatcher
 from optimizely.event.event_processor import BatchEventProcessor
+from dynamodb_user_profile import DynamodbUserProfile
 
-# Enable event batching
-batch_processor = BatchEventProcessor(
-    EventDispatcher,
-    batch_size=15,
-    flush_interval=30,
-    start_on_init=True
-)
-
-# Enable logging
-simple_logger = SimpleLogger(min_level=INFO)
+if 'OPTIMIZELY_SDK_KEY' not in environ:
+    exit('Environment variable "OPTIMIZELY_SDK_KEY" not set')
 
 # Initiate Optimizely client
 optimizely_client = Optimizely(
     sdk_key=environ['OPTIMIZELY_SDK_KEY'],
-    logger=simple_logger,
-    event_processor=batch_processor
+    logger=NoOpLogger(),
+    user_profile_service=DynamodbUserProfile(),
+    event_processor=BatchEventProcessor(
+        EventDispatcher,
+        batch_size=15,
+        flush_interval=30,
+        start_on_init=True
+    ),
 )
 
 # TODO: replace with some dynamic content

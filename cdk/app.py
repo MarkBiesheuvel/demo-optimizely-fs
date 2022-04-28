@@ -6,10 +6,12 @@ from aws_cdk import (
     Environment,
     Stack,
     Duration,
+    RemovalPolicy,
     aws_apigateway as apigateway,
     aws_certificatemanager as acm,
     aws_cloudfront as cloudfront,
     aws_cloudfront_origins as origins,
+    aws_dynamodb as dynamodb,
     aws_lambda as lambda_,
     aws_route53 as route53,
     aws_route53_targets as targets,
@@ -26,6 +28,17 @@ class OptimizelyFullStackStack(Stack):
         domain_name = self.node.try_get_context('domainName')
         subdomain = 'fs.{}'.format(domain_name)
 
+        table = dynamodb.Table(
+            self, 'User',
+            billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
+            removal_policy=RemovalPolicy.DESTROY,
+            point_in_time_recovery=True,
+            partition_key=dynamodb.Attribute(
+                name='user_id',
+                type=dynamodb.AttributeType.STRING,
+            )
+        )
+
         sdk = lambda_.LayerVersion(
             self, 'OptimizelySDK',
             compatible_runtimes=[lambda_.Runtime.PYTHON_3_8],
@@ -40,8 +53,11 @@ class OptimizelyFullStackStack(Stack):
             layers=[sdk],
             environment={
                 'OPTIMIZELY_SDK_KEY': os.getenv('OPTIMIZELY_SDK_KEY'),
+                'TABLE_NAME': table.table_name,
             }
         )
+
+        table.grant_read_write_data(overview_function)
 
         api = apigateway.RestApi(
             self, 'Api',
