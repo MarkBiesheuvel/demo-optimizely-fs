@@ -39,7 +39,7 @@ class OptimizelyFullStackStack(Stack):
             handler='index.handler',
             layers=[sdk],
             environment={
-                'OPTIMIZELY_SDK_KEY': '',
+                'OPTIMIZELY_SDK_KEY': os.getenv('OPTIMIZELY_SDK_KEY'),
             }
         )
 
