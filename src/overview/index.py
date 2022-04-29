@@ -74,10 +74,20 @@ def handler(event, context):
     # TODO: get user id from cookie
     user_id = str(randint(0, 25))
 
-    # TODO: get attributes from request
+    headers = event['headers']
+
+    # TODO: look into https://aws.amazon.com/blogs/networking-and-content-delivery/amazon-cloudfront-announces-cache-and-origin-request-policies/
     attributes = {
-        'device': 'OnePlus 7 Pro',
-        'country': 'NL',
+        '$opt_user_agent': headers.get('User-Agent', None), # FIX: this is always "Amazon CloudFront"
+        'is_premium_member': user_id.startswith('1'), # Deterministic (but seemingly random) boolean
+        'country': headers.get('CloudFront-Viewer-Country', None),
+        'is_desktop': headers.get('CloudFront-Is-Desktop-Viewer', False),
+        'is_tablet': headers.get('CloudFront-Is-Tablet-Viewer', False),
+        'is_mobile': headers.get('CloudFront-Is-Mobile-Viewer', False),
+        'is_smarttv': headers.get('CloudFront-Is-SmartTV-Viewer', False),
+        'is_android': headers.get('CloudFront-Is-Android-Viewer', False),
+        'is_ios': headers.get('CloudFront-Is-IOS-Viewer', False),
+
     }
 
     # Get decision on a flag

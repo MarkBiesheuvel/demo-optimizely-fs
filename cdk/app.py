@@ -93,8 +93,18 @@ class OptimizelyFullStackStack(Stack):
             min_ttl=Duration.seconds(0),
             default_ttl=Duration.seconds(5),
             max_ttl=Duration.seconds(30),
-            cookie_behavior=cloudfront.CacheCookieBehavior.allow_list('user_id'),
-            header_behavior=cloudfront.CacheHeaderBehavior.none(),
+            cookie_behavior=cloudfront.CacheCookieBehavior.allow_list(
+                'user_id'
+            ),
+            header_behavior=cloudfront.CacheHeaderBehavior.allow_list(
+                'CloudFront-Viewer-Country',
+                'CloudFront-Is-Desktop-Viewer',
+                'CloudFront-Is-Tablet-Viewer',
+                'CloudFront-Is-Mobile-Viewer',
+                'CloudFront-Is-SmartTV-Viewer',
+                'CloudFront-Is-Android-Viewer',
+                'CloudFront-Is-IOS-Viewer',
+            ),
             query_string_behavior=cloudfront.CacheQueryStringBehavior.none(),
         )
 
