@@ -18,6 +18,7 @@ from aws_cdk import (
     aws_synthetics_alpha as synthetics,
 )
 
+
 class OptimizelyFullStackStack(Stack):
 
     def __init__(self, scope: Construct, construct_id: str, **kwargs) -> None:
@@ -27,17 +28,6 @@ class OptimizelyFullStackStack(Stack):
         # Determine domain name and sub domain from the context variables
         domain_name = self.node.try_get_context('domainName')
         subdomain = 'fs.{}'.format(domain_name)
-
-        table = dynamodb.Table(
-            self, 'User',
-            billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
-            removal_policy=RemovalPolicy.DESTROY,
-            point_in_time_recovery=True,
-            partition_key=dynamodb.Attribute(
-                name='user_id',
-                type=dynamodb.AttributeType.STRING,
-            )
-        )
 
         sdk = lambda_.LayerVersion(
             self, 'OptimizelySDK',
@@ -50,14 +40,17 @@ class OptimizelyFullStackStack(Stack):
             runtime=lambda_.Runtime.PYTHON_3_8,
             code=lambda_.Code.from_asset('src/overview'),
             handler='index.handler',
-            layers=[sdk],
-            environment={
-                'OPTIMIZELY_SDK_KEY': os.getenv('OPTIMIZELY_SDK_KEY'),
-                'TABLE_NAME': table.table_name,
-            }
         )
 
-        table.grant_read_write_data(overview_function)
+        viewer_request_function = lambda_.Function(
+            self, 'ViewerRequestFunction',
+            runtime=lambda_.Runtime.PYTHON_3_8,
+            code=lambda_.Code.from_asset('src/viewer-request'),
+            handler='index.handler',
+            current_version_options=lambda_.VersionOptions(
+                retry_attempts=0,
+            )
+        )
 
         api = apigateway.RestApi(
             self, 'Api',
@@ -87,23 +80,14 @@ class OptimizelyFullStackStack(Stack):
             region='us-east-1',
         )
 
-        # Create custom cache policy in order to use a cookie
-        cache_policy = cloudfront.CachePolicy(self, 'CachePolicy',
-            cache_policy_name='optimizelyfullstack',
-            min_ttl=Duration.seconds(0),
-            default_ttl=Duration.seconds(5),
-            max_ttl=Duration.seconds(30),
-            cookie_behavior=cloudfront.CacheCookieBehavior.allow_list(
-                'user_id'
-            ),
+        # Use a custom header to cache different variations under different keys
+        cache_key_policy = cloudfront.CachePolicy(self, 'CacheKeyPolicy',
+            min_ttl=Duration.minutes(5),
+            default_ttl=Duration.minutes(5),
+            max_ttl=Duration.minutes(5),
+            cookie_behavior=cloudfront.CacheCookieBehavior.none(),
             header_behavior=cloudfront.CacheHeaderBehavior.allow_list(
-                'CloudFront-Viewer-Country',
-                'CloudFront-Is-Desktop-Viewer',
-                'CloudFront-Is-Tablet-Viewer',
-                'CloudFront-Is-Mobile-Viewer',
-                'CloudFront-Is-SmartTV-Viewer',
-                'CloudFront-Is-Android-Viewer',
-                'CloudFront-Is-IOS-Viewer',
+                'Optimizely-Decision',
             ),
             query_string_behavior=cloudfront.CacheQueryStringBehavior.none(),
         )
@@ -125,7 +109,13 @@ class OptimizelyFullStackStack(Stack):
                     )
                 ),
                 viewer_protocol_policy=cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
-                cache_policy=cache_policy,
+                cache_policy=cache_key_policy,
+                edge_lambdas=[
+                    cloudfront.EdgeLambda(
+                        event_type=cloudfront.LambdaEdgeEventType.VIEWER_REQUEST,
+                        function_version=viewer_request_function.current_version,
+                    ),
+                ],
             )
         )
 
@@ -151,7 +141,7 @@ app = App()
 OptimizelyFullStackStack(app, 'OptimizelyFullStack',
     env=Environment(
         account=os.getenv('CDK_DEFAULT_ACCOUNT'),
-        region=os.getenv('CDK_DEFAULT_REGION')
+        region='us-east-1', # Needs to be N. Virginia since using Lambda@Edge
     ),
 )
 app.synth()

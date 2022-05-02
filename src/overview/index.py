@@ -1,29 +1,4 @@
-from os import environ
-from time import sleep
-from random import randint
-from logging import WARNING
-from json import dumps as json_encode
-from optimizely.optimizely import Optimizely
-from optimizely.logger import NoOpLogger
-from optimizely.event_dispatcher import EventDispatcher
-from optimizely.event.event_processor import BatchEventProcessor
-from dynamodb_user_profile import DynamodbUserProfile
-
-if 'OPTIMIZELY_SDK_KEY' not in environ:
-    exit('Environment variable "OPTIMIZELY_SDK_KEY" not set')
-
-# Initiate Optimizely client
-optimizely_client = Optimizely(
-    sdk_key=environ['OPTIMIZELY_SDK_KEY'],
-    logger=NoOpLogger(),
-    user_profile_service=DynamodbUserProfile(),
-    event_processor=BatchEventProcessor(
-        EventDispatcher,
-        batch_size=15,
-        flush_interval=30,
-        start_on_init=True
-    ),
-)
+from json import dumps as json_encode, loads as json_decode
 
 # TODO: replace with some dynamic content
 products = [
@@ -71,33 +46,15 @@ products = [
 
 
 def handler(event, context):
-    # TODO: get user id from cookie
-    user_id = str(randint(0, 25))
-
     headers = event['headers']
 
-    # TODO: look into https://aws.amazon.com/blogs/networking-and-content-delivery/amazon-cloudfront-announces-cache-and-origin-request-policies/
-    attributes = {
-        '$opt_user_agent': headers.get('User-Agent', None), # FIX: this is always "Amazon CloudFront"
-        'is_premium_member': user_id.startswith('1'), # Deterministic (but seemingly random) boolean
-        'country': headers.get('CloudFront-Viewer-Country', None),
-        'is_desktop': headers.get('CloudFront-Is-Desktop-Viewer', False),
-        'is_tablet': headers.get('CloudFront-Is-Tablet-Viewer', False),
-        'is_mobile': headers.get('CloudFront-Is-Mobile-Viewer', False),
-        'is_smarttv': headers.get('CloudFront-Is-SmartTV-Viewer', False),
-        'is_android': headers.get('CloudFront-Is-Android-Viewer', False),
-        'is_ios': headers.get('CloudFront-Is-IOS-Viewer', False),
-
-    }
-
-    # Get decision on a flag
-    user = optimizely_client.create_user_context(user_id, attributes)
-    decision = user.decide('sorting_algorithm')
+    # Get decision from custom header
+    decision = json_decode(headers['Optimizely-Decision'])
 
     # Get variables from decision
-    number_of_products = decision.variables['number_of_products']
-    field = decision.variables['field']
-    reverse = (decision.variables['direction'] == 'desc')
+    number_of_products = decision['number_of_products']
+    field = decision['field']
+    reverse = decision['reverse']
 
     # Sort and limit the products based on decision
     selected_products = sorted(
@@ -108,18 +65,11 @@ def handler(event, context):
 
     response = {
         'products': selected_products,
-        'user_id': user_id,
-        'variation': decision.variation_key,
-        'variables': decision.variables,
+        'decision': decision,
     }
 
     # Return a HTTP response to API proxy
     return {
         'statusCode': 200,
-        'multiValueHeaders': {
-            'Set-Cookie': [
-                'user_id={}; Max-Age=604800; Secure; HttpOnly; SameSite=Strict'.format(user_id)
-            ],
-        },
         'body': json_encode(response)
     }
