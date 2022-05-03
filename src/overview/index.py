@@ -49,12 +49,13 @@ def handler(event, context):
     headers = event['headers']
 
     # Get decision from custom header
-    decision = json_decode(headers['Optimizely-Decision'])
+    variation_key = headers['Optimizely-Variartion-Key']
+    variables = json_decode(headers['Optimizely-Variables'])
 
     # Get variables from decision
-    number_of_products = decision['number_of_products']
-    field = decision['field']
-    reverse = decision['reverse']
+    number_of_products = variables['number_of_products']
+    field = variables['field']
+    reverse = (variables['direction'] == 'desc')
 
     # Sort and limit the products based on decision
     selected_products = sorted(
@@ -65,7 +66,8 @@ def handler(event, context):
 
     response = {
         'products': selected_products,
-        'decision': decision,
+        'variation_key': variation_key,
+        'variables': variables,
     }
 
     # Return a HTTP response to API proxy

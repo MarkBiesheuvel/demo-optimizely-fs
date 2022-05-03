@@ -29,12 +29,6 @@ class OptimizelyFullStackStack(Stack):
         domain_name = self.node.try_get_context('domainName')
         subdomain = 'fs.{}'.format(domain_name)
 
-        sdk = lambda_.LayerVersion(
-            self, 'OptimizelySDK',
-            compatible_runtimes=[lambda_.Runtime.PYTHON_3_8],
-            code=lambda_.Code.from_asset('src/optimizely-sdk'),
-        )
-
         overview_function = lambda_.Function(
             self, 'OverviewFunction',
             runtime=lambda_.Runtime.PYTHON_3_8,
@@ -80,16 +74,23 @@ class OptimizelyFullStackStack(Stack):
             region='us-east-1',
         )
 
-        # Use a custom header to cache different variations under different keys
+        # Use a single custom header to cache different variations under different keys
         cache_key_policy = cloudfront.CachePolicy(self, 'CacheKeyPolicy',
-            min_ttl=Duration.minutes(5),
+            min_ttl=Duration.seconds(0),
             default_ttl=Duration.minutes(5),
             max_ttl=Duration.minutes(5),
-            cookie_behavior=cloudfront.CacheCookieBehavior.none(),
             header_behavior=cloudfront.CacheHeaderBehavior.allow_list(
-                'Optimizely-Decision',
+                'Optimizely-Variartion-Key',
             ),
-            query_string_behavior=cloudfront.CacheQueryStringBehavior.none(),
+        )
+
+        # Forward all custom headers to origin
+        origin_request_policy = cloudfront.OriginRequestPolicy(self, 'OriginRequestPolicy',
+            header_behavior=cloudfront.OriginRequestHeaderBehavior.allow_list(
+                'Optimizely-Variartion-Key',
+                'Optimizely-Variables',
+                'Optimizely-User-Id',
+            ),
         )
 
         # Content Delivery Network
@@ -110,6 +111,7 @@ class OptimizelyFullStackStack(Stack):
                 ),
                 viewer_protocol_policy=cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
                 cache_policy=cache_key_policy,
+                origin_request_policy=origin_request_policy,
                 edge_lambdas=[
                     cloudfront.EdgeLambda(
                         event_type=cloudfront.LambdaEdgeEventType.VIEWER_REQUEST,
