@@ -29,11 +29,28 @@ class OptimizelyFullStackStack(Stack):
         domain_name = self.node.try_get_context('domainName')
         subdomain = 'fs.{}'.format(domain_name)
 
+        sdk = lambda_.LayerVersion(
+            self, 'OptimizelySDK',
+            compatible_runtimes=[lambda_.Runtime.PYTHON_3_8],
+            code=lambda_.Code.from_asset('src/optimizely-sdk'),
+        )
+
         overview_function = lambda_.Function(
             self, 'OverviewFunction',
             runtime=lambda_.Runtime.PYTHON_3_8,
             code=lambda_.Code.from_asset('src/overview'),
             handler='index.handler',
+        )
+
+        decide_function = lambda_.Function(
+            self, 'DecideFunction',
+            runtime=lambda_.Runtime.PYTHON_3_8,
+            code=lambda_.Code.from_asset('src/decide'),
+            handler='index.handler',
+            layers=[sdk],
+            environment={
+                'OPTIMIZELY_SDK_KEY': os.getenv('OPTIMIZELY_SDK_KEY'),
+            }
         )
 
         viewer_request_function = lambda_.Function(
@@ -59,6 +76,14 @@ class OptimizelyFullStackStack(Stack):
             ),
         )
 
+        api.root.add_resource('decide').add_method(
+            http_method='GET',
+            integration=apigateway.LambdaIntegration(
+                decide_function,
+                proxy=True,
+            ),
+        )
+
         # Assumption: Hosted Zone is created outside of this project
         # Fetch the Route53 Hosted Zone
         zone = route53.HostedZone.from_lookup(
@@ -75,7 +100,8 @@ class OptimizelyFullStackStack(Stack):
         )
 
         # Use a single custom header to cache different variations under different keys
-        cache_key_policy = cloudfront.CachePolicy(self, 'CacheKeyPolicy',
+        cache_key_policy = cloudfront.CachePolicy(
+            self, 'CacheKeyPolicy',
             min_ttl=Duration.seconds(0),
             default_ttl=Duration.minutes(5),
             max_ttl=Duration.minutes(5),
@@ -85,8 +111,14 @@ class OptimizelyFullStackStack(Stack):
         )
 
         # Forward all custom headers to origin
-        origin_request_policy = cloudfront.OriginRequestPolicy(self, 'OriginRequestPolicy',
+        origin_request_policy = cloudfront.OriginRequestPolicy(
+            self, 'OriginRequestPolicy',
             header_behavior=cloudfront.OriginRequestHeaderBehavior.allow_list(
+                'Optimizely-Variartion-Key',
+                'Optimizely-Variables',
+                'Optimizely-User-Id',
+            ),
+            cookie_behavior=cloudfront.OriginRequestCookieBehavior.allow_list(
                 'Optimizely-Variartion-Key',
                 'Optimizely-Variables',
                 'Optimizely-User-Id',

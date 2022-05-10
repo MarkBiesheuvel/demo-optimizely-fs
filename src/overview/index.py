@@ -1,5 +1,12 @@
 from json import dumps as json_encode, loads as json_decode
 
+# Default settings in case no data
+EMPTY_OBJECT = '{}'
+DEFAULT_VARIATION_KEY = 'off'
+DEFAULT_FIELD = 'price'
+DEFAULT_DIRECTION = 'asc'
+DEFAULT_NUMBER_OF_PRODUCTS = 3
+
 # TODO: replace with some dynamic content
 products = [
     {
@@ -49,19 +56,19 @@ def handler(event, context):
     headers = event['headers']
 
     # Get decision from custom header
-    variation_key = headers['Optimizely-Variartion-Key']
-    variables = json_decode(headers['Optimizely-Variables'])
+    variation_key = headers.get('Optimizely-Variartion-Key', DEFAULT_VARIATION_KEY)
+    variables = json_decode(headers.get('Optimizely-Variables', EMPTY_OBJECT))
 
     # Get variables from decision
-    number_of_products = variables['number_of_products']
-    field = variables['field']
-    reverse = (variables['direction'] == 'desc')
+    number_of_products = variables.get('number_of_products', DEFAULT_NUMBER_OF_PRODUCTS)
+    field = variables.get('field', DEFAULT_FIELD)
+    direction = variables.get('direction', DEFAULT_DIRECTION)
 
     # Sort and limit the products based on decision
     selected_products = sorted(
         products,
         key=lambda product: product[field],
-        reverse=reverse
+        reverse=(direction == 'desc')
     )[:number_of_products]
 
     response = {
