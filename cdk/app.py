@@ -105,21 +105,16 @@ class OptimizelyFullStackStack(Stack):
             min_ttl=Duration.seconds(0),
             default_ttl=Duration.minutes(5),
             max_ttl=Duration.minutes(5),
-            header_behavior=cloudfront.CacheHeaderBehavior.allow_list(
-                'Optimizely-Variartion-Key',
+            cookie_behavior=cloudfront.CacheCookieBehavior.allow_list(
+                'Optimizely-Variation-Key',
             ),
         )
 
         # Forward all custom headers to origin
         origin_request_policy = cloudfront.OriginRequestPolicy(
             self, 'OriginRequestPolicy',
-            header_behavior=cloudfront.OriginRequestHeaderBehavior.allow_list(
-                'Optimizely-Variartion-Key',
-                'Optimizely-Variables',
-                'Optimizely-User-Id',
-            ),
             cookie_behavior=cloudfront.OriginRequestCookieBehavior.allow_list(
-                'Optimizely-Variartion-Key',
+                'Optimizely-Variation-Key',
                 'Optimizely-Variables',
                 'Optimizely-User-Id',
             ),

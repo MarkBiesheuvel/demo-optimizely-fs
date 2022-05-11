@@ -1,8 +1,8 @@
 from json import dumps as json_encode, loads as json_decode
+from base64 import b64decode as base64_decode_bytes
+from http.cookies import SimpleCookie
 
 # Default settings in case no data
-EMPTY_OBJECT = '{}'
-DEFAULT_VARIATION_KEY = 'off'
 DEFAULT_FIELD = 'price'
 DEFAULT_DIRECTION = 'asc'
 DEFAULT_NUMBER_OF_PRODUCTS = 3
@@ -52,12 +52,20 @@ products = [
 ]
 
 
+def base64_decode(string):
+    return base64_decode_bytes(string.encode()).decode()
+
+
 def handler(event, context):
-    headers = event['headers']
+    print(json_encode(event))
+
+    # Collect cookie data
+    cookie = SimpleCookie()
+    cookie.load(event['headers']['Cookie'])
 
     # Get decision from custom header
-    variation_key = headers.get('Optimizely-Variartion-Key', DEFAULT_VARIATION_KEY)
-    variables = json_decode(headers.get('Optimizely-Variables', EMPTY_OBJECT))
+    variation_key = cookie.get('Optimizely-Variation-Key').value
+    variables = json_decode(base64_decode(cookie.get('Optimizely-Variables').value))
 
     # Get variables from decision
     number_of_products = variables.get('number_of_products', DEFAULT_NUMBER_OF_PRODUCTS)

@@ -1,4 +1,5 @@
 from json import dumps as json_encode
+from base64 import b64encode as base64_encode_bytes
 from random import randint
 from os import environ
 from optimizely.optimizely import Optimizely
@@ -10,9 +11,12 @@ optimizely_client = Optimizely(
     logger=NoOpLogger(),
 )
 
+def base64_encode(string):
+    return base64_encode_bytes(string.encode()).decode()
+
 
 def add_cookie(cookies, key, value):
-    cookies.append('{}={}; Max-Age=604800; Secure; HttpOnly; SameSite=Strict'.format(key, value))
+    cookies.append('{}={}; Path=/; Max-Age=604800; Secure; HttpOnly; SameSite=Strict'.format(key, value))
 
 
 def handler(event, context):
@@ -29,13 +33,17 @@ def handler(event, context):
 
     # Add cookies to response
     cookies = []
-    add_cookie(cookies, 'Optimizely-Variartion-Key', decision.variation_key)
-    add_cookie(cookies, 'Optimizely-Variables', decision.variables)
     add_cookie(cookies, 'Optimizely-User-Id', user_id)
+    add_cookie(cookies, 'Optimizely-Variation-Key', decision.variation_key)
+    add_cookie(cookies, 'Optimizely-Variables', base64_encode(json_encode(decision.variables)))
 
     # Return a HTTP response to API proxy
     return {
-        'statusCode': 200,
+        'statusCode': 302,
+        'headers': {
+            'Location': '/',
+            'Cache-Control': 'no-store, no-cache',
+        },
         'multiValueHeaders': {
             'Set-Cookie': cookies,
         },
