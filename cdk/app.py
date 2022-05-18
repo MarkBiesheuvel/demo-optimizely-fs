@@ -53,14 +53,9 @@ class OptimizelyFullStackStack(Stack):
             }
         )
 
-        viewer_request_function = lambda_.Function(
+        viewer_request_function = cloudfront.Function(
             self, 'ViewerRequestFunction',
-            runtime=lambda_.Runtime.PYTHON_3_8,
-            code=lambda_.Code.from_asset('src/viewer-request'),
-            handler='index.handler',
-            current_version_options=lambda_.VersionOptions(
-                retry_attempts=0,
-            )
+            code=cloudfront.FunctionCode.from_file(file_path='src/viewer-request/index.js'),
         )
 
         api = apigateway.RestApi(
@@ -139,11 +134,11 @@ class OptimizelyFullStackStack(Stack):
                 viewer_protocol_policy=cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
                 cache_policy=cache_key_policy,
                 origin_request_policy=origin_request_policy,
-                edge_lambdas=[
-                    cloudfront.EdgeLambda(
+                function_associations=[
+                    cloudfront.FunctionAssociation(
                         event_type=cloudfront.LambdaEdgeEventType.VIEWER_REQUEST,
-                        function_version=viewer_request_function.current_version,
-                    ),
+                        function=viewer_request_function,
+                    )
                 ],
             )
         )
@@ -170,7 +165,7 @@ app = App()
 OptimizelyFullStackStack(app, 'OptimizelyFullStack',
     env=Environment(
         account=os.getenv('CDK_DEFAULT_ACCOUNT'),
-        region='us-east-1', # Needs to be N. Virginia since using Lambda@Edge
+        region=os.getenv('CDK_DEFAULT_REGION'),
     ),
 )
 app.synth()
