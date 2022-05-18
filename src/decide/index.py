@@ -35,6 +35,9 @@ def handler(event, context):
     cookies = []
     add_cookie(cookies, 'Optimizely-User-Id', user_id)
     add_cookie(cookies, 'Optimizely-Variation-Key', decision.variation_key)
+
+    # Base64 encode the variable object so it can be stored in a alphanumeric cookie
+    # TODO: replace by JWT so the payload can be verified at the edge  to prevent user tampering with the cookie
     add_cookie(cookies, 'Optimizely-Variables', base64_encode(json_encode(decision.variables)))
 
     # Return a HTTP response to API proxy

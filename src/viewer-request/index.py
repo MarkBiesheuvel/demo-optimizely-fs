@@ -14,6 +14,7 @@ def contains_variation_key_cookie(request):
     cookie = request['headers']['cookie'][0]['value']
 
     # Match the complete cookie string againt a regex to search for Variation-Key
+    # TODO: validate whether the signature of the JWT token is valid
     return type(VARIATION_KEY_REGEX.search(cookie)) is re.Match
 
 
